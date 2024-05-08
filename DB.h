@@ -45,6 +45,7 @@ class DB{
 	void close_db();
 	bool create_tables();
 	bool create_tables_temp();
+
     std::vector<int> deletion;
 	int new_entry_to_database(const std::string& text, const std::vector<std::string>& tags);
     int entry_id_assign{-1};
@@ -60,6 +61,7 @@ public:
     bool delete_entry(int entry_id);
     bool delete_entries_to_db();
 
+	// returns id
 	std::vector<Entry> get_entries_with_tags(const std::vector<std::string>& _tags_list);
 	std::vector<Entry> get_all_entries();
 	std::vector<std::string> get_tags(int id);
