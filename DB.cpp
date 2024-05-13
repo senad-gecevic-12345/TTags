@@ -169,10 +169,10 @@ static std::pair<bool, T> sql_return_value_single(sqlite3* db, const std::string
     T out;
     sqlite3_stmt* stmt;
     auto ret = sqlite3_prepare_v2(db, select, -1, &stmt, 0);
-    bool bind_return = 1;
+    bool bind_ok = true;
     if(bind != nullptr)
-        bind_return = bind(stmt);
-    if (!ret) {
+        bind_ok = bind(stmt);
+    if (!ret && bind_ok) {
         if (sqlite3_step(stmt) == SQLITE_ROW) {
             out = func(stmt);
             return_status = true; 
