@@ -21,11 +21,11 @@ struct SQL_RETURN {
 	};
 };
 
-int sql_bind_spec(sqlite3_stmt* stmt, int num, int count = 1){
+static int sql_bind_spec(sqlite3_stmt* stmt, int num, int count = 1){
      return sqlite3_bind_int(stmt, count, num);
 }
 
-int sql_bind_spec(sqlite3_stmt* stmt, const std::string& str, int count = 1){
+static int sql_bind_spec(sqlite3_stmt* stmt, const std::string& str, int count = 1){
     return sqlite3_bind_text(stmt, count, str.c_str(), -1, SQLITE_STATIC);
 }
 
@@ -45,7 +45,7 @@ bool sql_bind(sqlite3_stmt* stmt, const std::vector<T>& vec){
     return true;
 }
 
-std::string char_double(const std::string& str, int num, ...){
+static std::string char_double(const std::string& str, int num, ...){
 	assert(num <= 8);
 	std::array<char, 8> list;
 	va_list args;
@@ -315,7 +315,7 @@ std::vector<Entry> DB::get_entries_with_tags(const std::vector<std::string>& _ta
 				auto text = to_str(sqlite3_column_text(stmt, 1));
 				return std::make_pair(date, text);
 			},
-			[=](sqlite3_stmt* stmt){
+			[&](sqlite3_stmt* stmt){
                 return sql_bind(stmt, x->first);
             }
         );
