@@ -286,16 +286,19 @@ void C_Main::resize(wxSizeEvent& evt) {
 // WINDOW
 
 // TODO: FRAME IS UNUSED
-Window::Window(bool is_horizontal, wxWindow* frame, unsigned int count): obj(frame), is_horizontal(is_horizontal){
-    mem.allocate(count);
+Window::Window(bool is_horizontal, wxWindow* frame)
+	: obj(frame), is_horizontal(is_horizontal)
+{
+	
+	
 }
 
-Window* Window::add(bool is_horizontal, wxWindow* frame, const std::string& debug, int extra_alloc) {
+Window* Window::add(bool is_horizontal, wxWindow* frame, const std::string& debug) {
     if (obj != nullptr) return nullptr;
 
     WindowSizeData size;
 
-    auto window = mem.add(new Window(is_horizontal, frame, extra_alloc));
+    auto window = mem.add(new Window(is_horizontal, frame));
     window->debug = debug;
 
     return window;
@@ -384,6 +387,8 @@ void Window::set_offset_values(WindowSizeData* arr, int offset, int it, const Si
 }
 
 bool Window::size_args(int num,...){
+	assert(mem.count == 0 && mem.alloc_count == 0 && obj == nullptr);
+	mem.allocate(num);
     int count = 0;
     va_list args;
     va_start(args, num);
@@ -492,12 +497,11 @@ void Window::print_window_helper(Window* window, const std::string& file_name_lo
 Window* window_test(wxSize size, wxWindow* add, wxWindow* publish, wxWindow* text, wxWindow* list, wxRichTextCtrl* vim, wxWindow* vim_command, wxWindow* vim_history){
 
 	const int main_pre_alloc{2};
-    auto main = new Window(1, nullptr, main_pre_alloc);
-	main->size_args(main_pre_alloc, 20, 80);
+    auto main = new Window(1, nullptr);
+	main->size_args(2, 20, 80);
 
-	const int left_pre_alloc{ 2 };
-	auto left = main->add(false, nullptr, "_left", left_pre_alloc);
-	left->size_args(left_pre_alloc, 10, 10);
+	auto left = main->add(false, nullptr, "_left");
+	left->size_args(2, 10, 10);
 	left->border_size = { 20,20,0,0 };
 
 	auto click = left->add(true, nullptr, "click");
@@ -510,8 +514,8 @@ Window* window_test(wxSize size, wxWindow* add, wxWindow* publish, wxWindow* tex
 	right->border_size = { 20,20,0,0 }; 
 
 	const int vim_memes_pre_alloc{ 3 };
-	auto vim_memes = right->add(0, nullptr, "vim_memes", vim_memes_pre_alloc);
-	vim_memes->size_args(vim_memes_pre_alloc, 70, 10, 20);
+	auto vim_memes = right->add(0, nullptr, "vim_memes");
+	vim_memes->size_args(3, 70, 10, 20);
 
 	auto vim_editor_meme = vim_memes->add(true, vim, "vim");
 	vim_editor_meme->on_resize_callback = [vim](int width, int height) { vim->set_size(width, height); };

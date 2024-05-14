@@ -33,31 +33,32 @@ struct Window {
 		int* sizes{ nullptr };
 		bool empty() { return count > 0; }
 		void allocate(int no_new_items = 1) {
-			if (alloc_count == 0) alloc_count = no_new_items;
-
 			{
 				bool newly_allocated = false;
 				if (windows == nullptr) {
-					windows = new Window * [alloc_count];
+					windows = new Window * [no_new_items];
 					newly_allocated = true;
 				}
 				if (sizes == nullptr) {
-					sizes = new int[alloc_count];
-					memset(sizes, -1, alloc_count * sizeof(sizes[0]));
+					sizes = new int[no_new_items];
+					memset(sizes, -1, no_new_items * sizeof(int));
 					newly_allocated = true;
 				}
-				if (newly_allocated) return;
+				if (newly_allocated) {
+					alloc_count = no_new_items;
+					return;
+				}
 			}
 
-			alloc_count *= 2;
 			alloc_count += no_new_items;
+			alloc_count *= 2;
 
 			auto* new_win = new Window * [alloc_count];
 			memcpy(new_win, windows, (count) * sizeof(Window*));
 
 			auto* new_sizes = new int[alloc_count];
-			memcpy(new_sizes, sizes, count * sizeof(int*));
-			memset(new_sizes + count, -1, (alloc_count - count) * sizeof(sizes[0]));
+			memcpy(new_sizes, sizes, count * sizeof(int));
+			memset(new_sizes + count, -1, (alloc_count - count) * sizeof(int));
 
 			delete[] windows;
 			delete[] sizes;
@@ -67,11 +68,9 @@ struct Window {
 		const int get_size(int x)const { return sizes[x]; }
 		const int get_count()const { return count; }
 
-		Window* add(Window* window, unsigned int alloc_count = 1) {
-			// weird because extra allocation should only be used on initialize where need prealloctation
-			// need to change this 
-			if (count + alloc_count + 1 > alloc_count)
-				allocate(alloc_count);
+		Window* add(Window* window) {
+			if(count + 1 > alloc_count)
+				allocate();
 			return windows[count++] = window;
 		}
 		Window* last() {
@@ -149,7 +148,7 @@ struct Window {
 
     void set_offset_values(WindowSizeData* arr, int offset, int it, const Sizer& args);
 	int resize(WindowSizeData p_size);
-	Window* add(bool is_horizontal, wxWindow* frame = nullptr, const std::string& debug = "", int extra_alloc = 1);
+	Window* add(bool is_horizontal, wxWindow* frame = nullptr, const std::string& debug = "");
 
 	static void delete_window_tree(Window* window);
 	static void print_window_tree_to_file(Window* window, FILE* file, int depth = 0);
@@ -161,7 +160,7 @@ struct Window {
 	Window(const Window& other) = delete;
 	Window operator=(const Window& other) = delete;
 	~Window() {}
-	explicit Window(bool is_horizontal, wxWindow* frame = nullptr, unsigned int count = 8);
+	explicit Window(bool is_horizontal, wxWindow* frame = nullptr);
 };
 
 Window* window_test(wxSize size, wxWindow* add, wxWindow* publish, wxWindow* text, wxWindow* list, wxRichTextCtrl* vim, wxWindow* vim_command, wxWindow* vim_history);
