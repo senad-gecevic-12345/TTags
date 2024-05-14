@@ -13,8 +13,6 @@
 
 #define __STDC_WANT_LIB_EXT1__ 1
 
-// TODO: rename and specify unordered map for sql_return_value_vector
-
 struct SQL_RETURN {
 	enum {
 		OK = 0
@@ -101,64 +99,22 @@ static std::string str_gen(Args... args){
     return s;
 }
 
-template<template<class>class S, typename T>
-static S<T> sql_return_value(sqlite3* db, const std::string& str, T(func(sqlite3_stmt*)), std::function<bool(sqlite3_stmt*)> bind = nullptr) {
-    S<T> s;
+template<template<class...>class S, class... T>
+static S<T...> sql_return_value(sqlite3* db, const std::string& str, void(add(sqlite3_stmt*, S<T...>*)), std::function<bool(sqlite3_stmt*)> bind = nullptr) {
+    S<T...> s;
     sqlite3_stmt* stmt;
     const char* select = str.c_str();
     auto ret = sqlite3_prepare_v2(db, select, -1, &stmt, 0);
-	bool bind_ok = true;
+	bool bind_ok{true};
 	if (bind != nullptr)
 		bind_ok = bind(stmt);
     if (!ret && bind_ok) {
         while (sqlite3_step(stmt) == SQLITE_ROW) {
-            if constexpr(std::is_same<S<T>, std::vector<T>>::value)
-                s.emplace_back(func(stmt));
-            else 
-                s.emplace(func(stmt));
+            add(stmt, &s);
         }
     }
     sqlite3_finalize(stmt);
 
-    return s;
-}
-
-template<template<class, class>class S, typename T>
-static S<int, T> sql_return_value(sqlite3* db, const std::string& str, std::pair<int, T>(func(sqlite3_stmt*)), std::function<bool(sqlite3_stmt*)> bind = nullptr) {
-    S<int, T> s;
-    sqlite3_stmt* stmt;
-    const char* select = str.c_str();
-    auto ret = sqlite3_prepare_v2(db, select, -1, &stmt, 0);
-    bool bind_ok = true;
-    if(bind != nullptr)
-        bind_ok = bind(stmt);
-    if (!ret && bind_ok) {
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            s.insert(func(stmt));
-        }
-    }
-    sqlite3_finalize(stmt);
-
-    return s;
-}
-
-template<template<class, class>class S, typename T>
-static S<int, std::vector<T>> sql_return_value_vector(sqlite3* db, const std::string& str, std::pair<int, T>(func(sqlite3_stmt*)), std::function<bool(sqlite3_stmt*)> bind = nullptr) {
-    static_assert(!std::is_same<S<int, std::vector<T>>, std::multimap<int, std::vector<T>>>::value);
-    S<int, std::vector<T>> s;
-    sqlite3_stmt* stmt;
-    const char* select = str.c_str();
-    auto ret = sqlite3_prepare_v2(db, select, -1, &stmt, 0);
-    bool bind_ok = true;
-    if(bind != nullptr)
-        bind_ok = bind(stmt);
-    if (!ret && bind_ok) {
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-			auto [x, y] = func(stmt);
-			s[x].push_back(y);
-        }
-    }
-    sqlite3_finalize(stmt);
     return s;
 }
 
@@ -288,19 +244,17 @@ std::vector<Entry> DB::get_entries_with_tags(const std::vector<std::string>& _ta
     std::vector<Entry> out;
    
     auto entries = sql_return_value<std::vector, int>(db, tags_select_entryref_str(_tags_list.size()),
-        [](sqlite3_stmt* stmt){
-			return sqlite3_column_int(stmt, 0);
+        [](sqlite3_stmt* stmt, std::vector<int>* vec){
+			vec->emplace_back(sqlite3_column_int(stmt, 0));
         },
         [&](sqlite3_stmt* stmt){
             return sql_bind(stmt, _tags_list);
         }
     );
 
-    auto sql_tags = sql_return_value_vector<std::unordered_map, std::string>(db, entryref_select_entryref_tags_str(entries.size()),
-        [](sqlite3_stmt* stmt)->std::pair<int, std::string>{
- 			return std::make_pair(
-                sqlite3_column_int(stmt, 0),
-                to_str(sqlite3_column_text(stmt, 1)));
+    auto sql_tags = sql_return_value<std::unordered_map, int, std::vector<std::string>>(db, entryref_select_entryref_tags_str(entries.size()),
+        [](sqlite3_stmt* stmt, std::unordered_map<int, std::vector<std::string>>* m){
+            (*m)[sqlite3_column_int(stmt, 0)].emplace_back(to_str(sqlite3_column_text(stmt, 1)));
         },
         [&](sqlite3_stmt* stmt){
             return sql_bind(stmt, entries);
@@ -331,11 +285,12 @@ std::vector<Entry> DB::get_entries_with_tags(const std::vector<std::string>& _ta
 std::vector<Entry> DB::get_all_entries() {
     if(!is_open()) return std::vector<Entry>();
     const char* select = "SELECT Id, Date, Text FROM Entries;";
-    return sql_return_value<std::vector, Entry>(db, select, [](sqlite3_stmt* stmt) {
+    return sql_return_value<std::vector, Entry>(db, select, [](sqlite3_stmt* stmt, std::vector<Entry>* vec) {
         int id = sqlite3_column_int(stmt, 0);
         auto date = to_str(sqlite3_column_text(stmt, 1));
         auto text = to_str(sqlite3_column_text(stmt, 2));
-        return Entry{id, date, text};
+        vec->emplace_back(Entry{id, date, text});
+        //return Entry{id, date, text};
     }, nullptr);
 }
 
@@ -343,8 +298,9 @@ std::vector<std::string> DB::get_tags(int id) {
     if(!is_open()) return std::vector<std::string>();
     auto select = "SELECT Tag FROM Tags WHERE EntryRef = ?1";
     return sql_return_value<std::vector, std::string>(db, select, 
-        [](sqlite3_stmt* stmt) {
-            return std::string{to_str(sqlite3_column_text(stmt, 0))};
+        [](sqlite3_stmt* stmt, std::vector<std::string>* vec) {
+            vec->emplace_back(to_str(sqlite3_column_text(stmt, 0)));
+            //return std::string{to_str(sqlite3_column_text(stmt, 0))};
         }, 
         [id](sqlite3_stmt* stmt){
             return sql_bind(stmt, id);
