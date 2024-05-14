@@ -288,13 +288,10 @@ void C_Main::resize(wxSizeEvent& evt) {
 // TODO: FRAME IS UNUSED
 Window::Window(bool is_horizontal, wxWindow* frame)
 	: obj(frame), is_horizontal(is_horizontal)
-{
-	
-	
-}
+{}
 
 Window* Window::add(bool is_horizontal, wxWindow* frame, const std::string& debug) {
-    if (obj != nullptr) return nullptr;
+	assert(obj == nullptr);
 
     WindowSizeData size;
 
