@@ -1,5 +1,7 @@
 #include "C_Main.h"
 #include <string>
+#include <wx/event.h>
+
 
 
 BEGIN_EVENT_TABLE(C_Main, wxFrame)
@@ -83,9 +85,10 @@ void C_Main::clear_accell_table() {
 }
 
 
-C_Main::C_Main() : wxFrame(nullptr, wxID_ANY, "Window", wxPoint(30, 30), wxSize(800, 1000)) {
+C_Main::C_Main() : wxFrame(nullptr, wxID_ANY, "Window", wxPoint(0, 0), wxSize(800, 600)) {
 	auto color = wxColor(6, 20, 46);
 	this->SetBackgroundColour(color);
+
 
     log = new wxNotebook();
 	add = new wxButton(this, WIDGETS::ADD, "Add", wxPoint(10, 40), wxSize(150, 40));
@@ -211,7 +214,8 @@ C_Main::C_Main() : wxFrame(nullptr, wxID_ANY, "Window", wxPoint(30, 30), wxSize(
 	SetSize(x);
 	auto w_size = GetSize();
 	resize_tree = window_test(w_size, add, publish, txt_1, list, vim_editor, vim_command_line.get(), vim_command_history.get()); 
-	print_window_helper(resize_tree,"C:\\Users\\meme_\\Desktop\\meme.txt");
+	Window::print_window_helper(resize_tree,"C:\\Users\\meme_\\Desktop\\meme.txt");
+
 	Refresh();
 	vim_editor->SetFocus();
 }
@@ -270,9 +274,11 @@ void C_Main::save() {
 void C_Main::resize(wxSizeEvent& evt) {
 	if (resize_tree == nullptr) return;
 	auto [x, y] = evt.GetSize();
-    // BUG: this may depend on res and what kind of system. need to account for this dynamically
-    // the extra size is probably the toolbar, which is not accounted for by the canvas?
-	resize_tree->resize({ x - 15, y - 58, 0, 0 });
+	evt.Skip();
+
+	// is border size...
+    resize_tree->resize({ x-16, y-59, 0, 0 });
+
 	Refresh();
 
 }
@@ -297,17 +303,17 @@ Window* Window::add(bool is_horizontal, wxWindow* frame, const std::string& debu
 }
 
 int Window::resize(WindowSizeData p_size) {
-    window_size = p_size;
-    //vim_resize
-        
+            
     auto border = [this](WindowSizeData size){
         auto win_size = size;
-        win_size.width -= this->border_size.width;
-        win_size.height -= this->border_size.height;
-        win_size.posx += (double(this->border_size.width)/2.0); // may cause problems over rounding
-        win_size.posy += (double(this->border_size.height)/2.0);
+        win_size.width -= this->border_size.width * 2;
+        win_size.height -= this->border_size.height * 2;
+        win_size.posx += (this->border_size.width); 
+        win_size.posy += (this->border_size.height);
         return win_size;
     }(p_size);
+
+    window_size = p_size;
 
     if(on_resize_callback)
         on_resize_callback(border.width, border.height);
@@ -317,6 +323,7 @@ int Window::resize(WindowSizeData p_size) {
 
     if (obj != nullptr) {
         obj->SetSize(wxSize(border.width, border.height));
+        obj->SetMinSize(wxSize(border.width, border.height));
         obj->SetPosition(wxPoint(border.posx, border.posy));
         obj->SetBackgroundColour(wxColor(31, 31, 31));
         obj->SetForegroundColour(wxColor(255, 255, 255));
@@ -324,28 +331,34 @@ int Window::resize(WindowSizeData p_size) {
     }
 
     int offset = 0;
+    int reserve = 0;
 
-    // NOTE: maybe joining missaligns
     for (int i = 0; i < mem.count; ++i) {
         p_size = border;
         set_offset_values(&p_size, (offset), i, args);
 
-        { // join
+        { 
             if (i != mem.count - 1) {
                 if (is_horizontal) {
                     if (mem.windows[i]->border_size.width == mem.windows[i + 1]->border_size.width) {
-                        const auto change_offset = mem.windows[i]->border_size.width / 2;
-                        p_size.width += change_offset;
+                        const auto change_offset = mem.windows[i]->border_size.width;
                         offset -= change_offset;
+                        reserve += change_offset;
                     }
                 }
                 else {
                     if (mem.windows[i]->border_size.height == mem.windows[i + 1]->border_size.height) {
-                        const auto change_offset = mem.windows[i]->border_size.height / 2;
-                        p_size.height += change_offset;
+                        const auto change_offset = mem.windows[i]->border_size.height;
                         offset -= change_offset;
+                        reserve += change_offset;
                     }
                 }
+            }
+            else{
+                if(is_horizontal)
+                    p_size.width += reserve;
+                else
+                    p_size.height += reserve;
             }
         }
 
@@ -361,17 +374,15 @@ int Window::resize(WindowSizeData p_size) {
 void Window::set_offset_values(WindowSizeData* arr, int offset, int it, const Sizer& args) {
     auto[x, y] = args.get_space(it);
 
-    if(is_horizontal){
-        arr->width = x;
-        arr->height = y;
+
+    arr->width = x;
+    arr->height = y;
+    if(is_horizontal)
         arr->posx += offset;
-    }
-    else{
-        arr->width = x;
-        arr->height = y;
+    else
         arr->posy += offset;
-    }
 }
+
 bool Window::size_args(int num,...){
     int count = 0;
     va_list args;
@@ -441,7 +452,7 @@ void Window::Sizer::calculate() {
 
 
 // window memes
-void delete_window_tree(Window* window) {
+void Window::delete_window_tree(Window* window) {
 	if (window == nullptr)return;
 	for (int i = 0; i < window->mem.count; ++i) {
 		delete_window_tree(window->mem.windows[i]);
@@ -449,7 +460,7 @@ void delete_window_tree(Window* window) {
 	delete window;
 }
 
-void print_window_tree_to_file(Window* window, FILE* file, int depth) {
+void Window::print_window_tree_to_file(Window* window, FILE* file, int depth) {
 	std::string output;
 	for (int i = 0; i < depth; ++i) {
 		output.append("-");
@@ -472,7 +483,7 @@ void print_window_tree_to_file(Window* window, FILE* file, int depth) {
 	}
 }
 
-void print_window_helper(Window* window, const std::string& file_name_loc) {
+void Window::print_window_helper(Window* window, const std::string& file_name_loc) {
 	FILE* file = fopen(file_name_loc.c_str(), "w");
 	print_window_tree_to_file(window, file);
 	fclose(file);
@@ -505,10 +516,9 @@ Window* window_test(wxSize size, wxWindow* add, wxWindow* publish, wxWindow* tex
 	auto vim_editor_meme = vim_memes->add(true, vim, "vim");
 	vim_editor_meme->on_resize_callback = [vim](int width, int height) { vim->set_size(width, height); };
 	vim_memes->add(1, vim_command, "vim_command");
-	// notebook is a manager
 	auto logging = vim_memes->add(false, vim_history, "vim_history");
-    //logging->add(1, log, "log");
 
 	main->resize({ 800, 600, 0, 0 });
+
 	return main;
 }

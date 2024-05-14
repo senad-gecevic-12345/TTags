@@ -26,18 +26,14 @@ struct Window {
 			return out;
 		}
 	}window_size, border_size;
-	struct Memory { 
-		int count{0};
-		int alloc_count{0};
-		Window** windows{nullptr};
-        int* sizes{nullptr};
-
-		const int get_size(int x)const { return sizes[x]; }
-		const int get_count()const { return count; }
-
+	class Memory {
+		int count{ 0 };
+		int alloc_count{ 0 };
+		Window** windows{ nullptr };
+		int* sizes{ nullptr };
 		bool empty() { return count > 0; }
 		void allocate(int no_new_items = 1) {
-			if (alloc_count == 0) alloc_count = 8 + no_new_items;
+			if (alloc_count == 0) alloc_count = no_new_items;
 
 			{
 				bool newly_allocated = false;
@@ -53,38 +49,50 @@ struct Window {
 				if (newly_allocated) return;
 			}
 
-			if (count < alloc_count) return;
+			if (count + no_new_items < alloc_count) return;
 
 			alloc_count *= 2;
-            alloc_count += no_new_items;
+			alloc_count += no_new_items;
 
-			auto* new_win = new Window* [alloc_count];
-			memcpy(new_win, windows, (count) * sizeof(windows[0]));
+			auto* new_win = new Window * [alloc_count];
+			memcpy(new_win, windows, (count) * sizeof(Window*));
 
 			auto* new_sizes = new int[alloc_count];
-			memcpy(new_sizes, sizes, count * sizeof(sizes[0]));
+			memcpy(new_sizes, sizes, count * sizeof(int*));
 			memset(new_sizes + count, -1, (alloc_count - count) * sizeof(sizes[0]));
 
 			delete[] windows;
-            delete[] sizes;
+			delete[] sizes;
 			windows = new_win;
-            sizes = new_sizes;
+			sizes = new_sizes;
 		}
-		Window* add(Window* window, unsigned int extra_alloc = 1) {
-			if(count + extra_alloc > alloc_count)
-				allocate(extra_alloc);
+		const int get_size(int x)const { return sizes[x]; }
+		const int get_count()const { return count; }
+
+		Window* add(Window* window, unsigned int alloc_count = 1) {
+			if (count + alloc_count > alloc_count)
+				allocate(alloc_count);
 			return windows[count++] = window;
 		}
 		Window* last() {
 			if (count < 1) return nullptr;
 			return windows[count - 1];
 		}
+
+	public:
+		Memory(){}
+		Memory(Memory& other) = delete;
+		Memory& operator = (Memory& other) = delete;
+		Memory(Memory&& other) = delete;
+		Memory& operator =	(Memory&& other) = delete;
 		~Memory() {
             if(windows != nullptr)
                 delete[] windows;
             if(sizes != nullptr)
                 delete[] sizes;
 		}
+		friend class Window;
+
 	}mem;
 
     bool size_args(int num,...);
@@ -142,26 +150,30 @@ struct Window {
     void set_offset_values(WindowSizeData* arr, int offset, int it, const Sizer& args);
 	int resize(WindowSizeData p_size);
 	Window* add(bool is_horizontal, wxWindow* frame = nullptr, const std::string& debug = "", int extra_alloc = 1);
+
+	static void delete_window_tree(Window* window);
+	static void print_window_tree_to_file(Window* window, FILE* file, int depth = 0);
+	static void print_window_helper(Window* window, const std::string& file_name_loc);
+
+
+	Window(const Window&& other) = delete;
+	Window operator=(const Window&& other) = delete;
 	Window(const Window& other) = delete;
 	Window operator=(const Window& other) = delete;
 	~Window() {}
 	explicit Window(bool is_horizontal, wxWindow* frame = nullptr, unsigned int count = 8);
 };
 
-
-void delete_window_tree(Window* window);
-void print_window_tree_to_file(Window* window, FILE* file, int depth = 0);
-void print_window_helper(Window* window, const std::string& file_name_loc);
 Window* window_test(wxSize size, wxWindow* add, wxWindow* publish, wxWindow* text, wxWindow* list, wxRichTextCtrl* vim, wxWindow* vim_command, wxWindow* vim_history);
 
 class C_Main : public wxFrame
 {
 public:
+
 	wxMenuBar* menu;
 	wxMenu* nav;
 	wxMenu* file;
 	Window* resize_tree{nullptr};
-
 
 
 	wxButton* add = nullptr;
