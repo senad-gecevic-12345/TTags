@@ -49,8 +49,6 @@ struct Window {
 				if (newly_allocated) return;
 			}
 
-			if (count + no_new_items < alloc_count) return;
-
 			alloc_count *= 2;
 			alloc_count += no_new_items;
 
@@ -70,7 +68,9 @@ struct Window {
 		const int get_count()const { return count; }
 
 		Window* add(Window* window, unsigned int alloc_count = 1) {
-			if (count + alloc_count > alloc_count)
+			// weird because extra allocation should only be used on initialize where need prealloctation
+			// need to change this 
+			if (count + alloc_count + 1 > alloc_count)
 				allocate(alloc_count);
 			return windows[count++] = window;
 		}
