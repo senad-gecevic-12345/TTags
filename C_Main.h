@@ -17,20 +17,10 @@ struct Window {
 		int get_height()const   { return height; }
 		int get_posx()const     { return posx; }
 		int get_posy()const     { return posy; }
-        int& get_length(bool is_horizontal){
-            return is_horizontal ? width : height;
-        }
-        int& get_offset(bool is_horizontal){
-            return is_horizontal ? posx : posy;
-        }
-		WindowSizeData operator + (const WindowSizeData& other) {
-			WindowSizeData out = *this;
-			out.width += other.width;
-			out.height += other.height;
-			out.posx += other.posx;
-			out.posy += other.posy;
-			return out;
-		}
+        int& get_length(bool is_horizontal){ return is_horizontal ? width : height; }
+        int& get_offset(bool is_horizontal){ return is_horizontal ? posx : posy; }
+        const int& get_length(bool is_horizontal)const{ return is_horizontal ? width : height; }
+        const int& get_offset(bool is_horizontal)const{ return is_horizontal ? posx : posy; }
 	}window_size, border_size;
 	class Memory {
 		int count{ 0 };
@@ -88,7 +78,7 @@ struct Window {
 		Memory(Memory& other) = delete;
 		Memory& operator = (Memory& other) = delete;
 		Memory(Memory&& other) = delete;
-		Memory& operator =	(Memory&& other) = delete;
+		Memory& operator = (Memory&& other) = delete;
 		~Memory() {
             delete[] windows;
             delete[] sizes;
@@ -99,32 +89,27 @@ struct Window {
 
     bool size_args(int num,...);
 	class Sizer {
-		const WindowSizeData*const window_size;
-		const Memory*const memory;
+		const WindowSizeData* const window_size;
+		const Memory* const memory;
 		const int is_horizontal;
 
 		int norm_count{0};
 		int specified_size{0};
 		int last_norm{-1};
 		bool use_window_size{1};
-		bool is_last(int x)const { return memory->get_count() - 1 == x; }
-		bool is_norm(int x)const { return (memory->get_size(x) == -1); }
-		bool is_last_norm(int x)const { return x == last_norm; }
-		double get_percent(int x)const		{ return double(memory->get_size(x)) / 100.0; } 
+		bool is_last(int x)const		{ return memory->get_count() - 1 == x; }
+		bool is_norm(int x)const		{ return (memory->get_size(x) == -1); }
+		bool is_last_norm(int x)const	{ return x == last_norm; }
+		double get_percent(int x)const	{ return double(memory->get_size(x)) / 100.0; } 
 
 		std::pair<int, int> get_offset_position_to_center(int width, int height);
 	public:
 		int get_count()const { return memory->get_count(); }
-		int get_area()const {
-			if (is_horizontal)
-				return window_size->get_width();
-			return window_size->get_height();
-		}
 		bool has_any_specified_size()const	{ return specified_size > 0; } 
 		int get_norm_count()const			{ return norm_count; } 
 		int get_specified_space()const		{ return specified_size; } 
 		int get_specified_count()const		{ return memory->get_count() - norm_count; }
-		int get_unspecified_space()const	{ return get_area() - get_specified_space(); }
+		int get_unspecified_space()const	{ return window_size->get_length(is_horizontal) - get_specified_space(); }
 		int get_norm_size()const			{ return get_unspecified_space() / get_norm_count(); } 
 		int get_remainder_space()const { 
 			int x = get_norm_size() * get_norm_count();
@@ -169,7 +154,6 @@ Window* window_test(wxSize size, wxWindow* add, wxWindow* publish, wxWindow* tex
 
 class C_Main : public wxFrame
 {
-
 	Window* resize_tree{nullptr};
 
 	wxButton* add{nullptr};

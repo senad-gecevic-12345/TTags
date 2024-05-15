@@ -176,7 +176,6 @@ C_Main::C_Main() : wxFrame(nullptr, wxID_ANY, "Window", wxPoint(0, 0), wxSize(80
 
 		if (change == 1) {
 			font = font.Larger();
-			//this->default_style.GetFont();
 			default_font = vim_editor->default_style.GetFont().Larger();
 		}
 		else {
@@ -197,7 +196,6 @@ C_Main::C_Main() : wxFrame(nullptr, wxID_ANY, "Window", wxPoint(0, 0), wxSize(80
 	nav->Append(VIM_KEYS::DEFAULT_STYLE, "DEFAULT");
 
 
-	// dunno about how to delete nav and file etc
 	menu->Append(nav, "navigation");
 	menu->Append(file, "file");
 
@@ -386,14 +384,6 @@ bool Window::size_args(int num,...){
 
 // WINDOW::SIZER
 
-std::pair<int, int> Window::Sizer::get_offset_position_to_center(int width, int height) {
-    auto size = *window_size;
-    int offs_w = double(size.width - width) / 2.0;
-    int offs_h = double(size.height - height) / 2.0;
-
-    return std::make_pair(offs_w, offs_h);
-};
-
 std::pair<int, int> Window::Sizer::get_space(int x)const {
     //if (x >= get_count()) { return -1; }
     auto set_output = [this](int length)->std::pair<int, int> {
@@ -411,7 +401,7 @@ std::pair<int, int> Window::Sizer::get_space(int x)const {
     }
     if (is_norm(x)) { return set_output(get_norm_size()); }
 
-    return set_output(get_area() * get_percent(x));
+    return set_output(window_size->get_length(is_horizontal) * get_percent(x));
 }
 
 
@@ -421,7 +411,7 @@ void Window::Sizer::calculate() {
     last_norm = -1;
     for(int i = 0; i < memory->get_count(); ++i){
         if(memory->get_size(i) != -1){ 
-            specified_size += get_area() * get_percent(i);
+            specified_size += window_size->get_length(is_horizontal) * get_percent(i);
         }
         else{
             last_norm = i;
@@ -487,7 +477,6 @@ Window* window_test(wxSize size, wxWindow* add, wxWindow* publish, wxWindow* tex
     auto right = main->add(false, nullptr, "right");
 	right->border_size = { 20,20,0,0 }; 
 
-	const int vim_memes_pre_alloc{ 3 };
 	auto vim_memes = right->add(0, nullptr, "vim_memes");
 	vim_memes->size_args(3, 70, 10, 20);
 
