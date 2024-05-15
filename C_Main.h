@@ -13,12 +13,15 @@ struct Window {
 		int height{0};
 		int posx{0};
 		int posy{0};
-		int get_width()const { return width; }
-		int get_height()const { return height; }
-		int get_posx()const { return posx; }
-		int get_posy()const { return posy; }
+		int get_width()const    { return width; }
+		int get_height()const   { return height; }
+		int get_posx()const     { return posx; }
+		int get_posy()const     { return posy; }
         int& get_length(bool is_horizontal){
             return is_horizontal ? width : height;
+        }
+        int& get_offset(bool is_horizontal){
+            return is_horizontal ? posx : posy;
         }
 		WindowSizeData operator + (const WindowSizeData& other) {
 			WindowSizeData out = *this;
@@ -149,7 +152,7 @@ struct Window {
 
  
 
-    void set_offset_values(WindowSizeData* arr, int offset, int it, const Sizer& args);
+    void set_children_size(WindowSizeData* arr, int offset, int it, const Sizer& args);
 	int resize(WindowSizeData p_size);
 	Window* add(bool is_horizontal, wxWindow* frame = nullptr, const std::string& debug = "");
 

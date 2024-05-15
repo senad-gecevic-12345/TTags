@@ -303,40 +303,39 @@ Window* Window::add(bool is_horizontal, wxWindow* frame, const std::string& debu
 }
 
 int Window::resize(WindowSizeData p_size) {
+    window_size = p_size;
             
-    auto border = [this](WindowSizeData size){
+    auto border_window = [this](WindowSizeData size){
         auto win_size = size;
-        win_size.width -= this->border_size.width * 2;
+        win_size.width  -= this->border_size.width * 2;
         win_size.height -= this->border_size.height * 2;
         win_size.posx += (this->border_size.width); 
         win_size.posy += (this->border_size.height);
         return win_size;
     }(p_size);
 
-    window_size = p_size;
 
     if(on_resize_callback)
-        on_resize_callback(border.width, border.height);
+        on_resize_callback(border_window.width, border_window.height);
 
-    Sizer args(&border, &mem, is_horizontal);
+    Sizer args(&border_window, &mem, is_horizontal);
     args.calculate(); 
 
     if (obj != nullptr) {
-        obj->SetSize(wxSize(border.width, border.height));
-        obj->SetMinSize(wxSize(border.width, border.height));
-        obj->SetPosition(wxPoint(border.posx, border.posy));
+        obj->SetSize(wxSize(border_window.width, border_window.height));
+        obj->SetMinSize(wxSize(border_window.width, border_window.height));
+        obj->SetPosition(wxPoint(border_window.posx, border_window.posy));
         obj->SetBackgroundColour(wxColor(31, 31, 31));
         obj->SetForegroundColour(wxColor(255, 255, 255));
-        return is_horizontal ? window_size.width : window_size.height;
+        return window_size.get_length(is_horizontal);
     }
 
     int offset = 0;
     int reserve = 0;
 
     for (int i = 0; i < mem.count; ++i) {
-        p_size = border;
-        set_offset_values(&p_size, (offset), i, args);
-
+        p_size = border_window;
+        set_children_size(&p_size, offset, i, args);
         { 
             if (i != mem.count - 1) {
                 if (mem.windows[i]->border_size.get_length(is_horizontal) == mem.windows[i + 1]->border_size.get_length(is_horizontal)) {
@@ -355,16 +354,11 @@ int Window::resize(WindowSizeData p_size) {
     return window_size.get_length(is_horizontal);
 }
 
-void Window::set_offset_values(WindowSizeData* arr, int offset, int it, const Sizer& args) {
+void Window::set_children_size(WindowSizeData* arr, int offset, int it, const Sizer& args) {
     auto[x, y] = args.get_space(it);
-
-
     arr->width = x;
     arr->height = y;
-    if(is_horizontal)
-        arr->posx += offset;
-    else
-        arr->posy += offset;
+    arr->get_offset(is_horizontal) += offset;
 }
 
 bool Window::size_args(int num,...){
