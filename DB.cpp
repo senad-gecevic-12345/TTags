@@ -66,14 +66,10 @@ static std::string char_double(const std::string& str, int num, ...){
 	return out;
 }
 
-static std::string tags_select_str(int entry_ref)                                         { return stringbuilder() << "SELECT Id, Tag FROM Tags WHERE EntryRef = " << entry_ref + ";"; }
 static std::string tags_add_str(int entry_ref, const std::string& tag)                    {	return stringbuilder() << "INSERT INTO Tags(Tag, EntryRef) VALUES('" << tag << "' , '" << entry_ref << "');"; }
 static std::string tags_delete_str(int entry_ref)                                         {	return stringbuilder() << "DELETE FROM Tags WHERE EntryRef = " 	<< entry_ref << ";"; }
-
 static std::string entries_text_update_str(int entry_id, const std::string& text)         {	return stringbuilder() << "UPDATE Entries SET Text = '" << text << "' WHERE Id = " << entry_id << ";"; }
-static std::string entries_select_str(int entry_id)                                       { return stringbuilder() << "SELECT Date, Text FROM Entries WHERE Id = " << entry_id << ";"; }
 static std::string entries_add_str(const std::string& date, const std::string& text)      {	return stringbuilder() << "INSERT INTO Entries(Date, Text) VALUES('" << date << "' , '" << text << "');"; }
-static std::string entries_delete_str(int id)                                             {	return stringbuilder() << "DELETE FROM Entries WHERE Id = " 	<< id << ";"; }
 
 Date current_date() {
     time_t a = time(nullptr);
@@ -99,8 +95,10 @@ static std::string str_gen(Args... args){
     return s;
 }
 
+// for the read entries, dont really want a return value. want just to write out the values to the display. therefore need no return value. can just not use it. but think should have another named for each or something
+// write the bind and non bind to call the other function, and then call it with nullptr or not
 template<template<class...>class S, class... T>
-static S<T...> sql_return_value(sqlite3* db, const std::string& str, void(add(sqlite3_stmt*, S<T...>*)), std::function<bool(sqlite3_stmt*)> bind = nullptr) {
+static S<T...> sql_return_value(sqlite3* db, const std::string& str, std::function<void(sqlite3_stmt*, S<T...>*)> add, std::function<bool(sqlite3_stmt*)> bind = nullptr) {
     S<T...> s;
     sqlite3_stmt* stmt;
     const char* select = str.c_str();
@@ -120,7 +118,7 @@ static S<T...> sql_return_value(sqlite3* db, const std::string& str, void(add(sq
 
 template<typename T>
 static std::pair<bool, T> sql_return_value_single(sqlite3* db, const std::string& str, T(func(sqlite3_stmt*)), std::function<bool(sqlite3_stmt*)> bind = nullptr) { 
-    bool return_status = false;
+    bool return_status{false};
     const char* select = str.c_str();
     T out;
     sqlite3_stmt* stmt;
@@ -139,47 +137,15 @@ static std::pair<bool, T> sql_return_value_single(sqlite3* db, const std::string
     return std::make_pair(return_status, out);
 }
 
-static std::string entryref_select_entryref_tags_str(int count){
-    if(count == 0) return "";
+
+std::string sql_parameters(int count, std::string sep){
     stringbuilder out;
-	out << "SELECT EntryRef, Tag FROM Tags WHERE EntryRef IN(";
     for(int i = 0; i < count; ++i){
         out << "?" << i + 1;
         if(i != count - 1){
-            out << ", ";
+            out << sep;
         }
     }
-    out << ");";
-    return out;
-}
-
-
-static std::string tags_select_entryref_str(int count){
-    if(count == 0) return "";
-    stringbuilder out;
-	out << "SELECT EntryRef FROM Tags WHERE Tag = ";
-    for(int i = 0; i < count; ++i){
-        out << "?" << i + 1;
-        if(i != count - 1){
-            out << " OR Tag = ";
-        }
-    }
-    out << ";";
-    return out;
-}
-
-static std::string tags_select_entryref_tag_str(int count){
-    if(count == 0) return "";
-    stringbuilder out;
-	out << "SELECT EntryRef, Tag FROM Tags WHERE Tag = ";
-    for(int i = 0; i < count; ++i){
-        out << "?" << i + 1;
-
-        if(i != count - 1){
-            out << " OR Tag = ";
-        }
-    }
-    out << ";";
     return out;
 }
 
@@ -205,7 +171,7 @@ int DB::new_entry_to_database(const std::string& text, const std::vector<std::st
     if(!is_open())return -1;
     
 	auto date = current_date().to_str();
-    sql(entries_add_str(date, text));
+    if(!sql(entries_add_str(date, text))) return -1;
     auto val = sql_return_value_single<int>(db, "SELECT LAST_INSERT_ROWID();", [](sqlite3_stmt* stmt){
         return sqlite3_column_int(stmt, 0);
     }, nullptr);
@@ -241,44 +207,38 @@ int DB::new_entry(){
 std::vector<Entry> DB::get_entries_with_tags(const std::vector<std::string>& _tags_list) {
     if(!is_open())return std::vector<Entry>();
 
-    std::vector<Entry> out;
-   
-    auto entries = sql_return_value<std::vector, int>(db, tags_select_entryref_str(_tags_list.size()),
-        [](sqlite3_stmt* stmt, std::vector<int>* vec){
-			vec->emplace_back(sqlite3_column_int(stmt, 0));
+    std::string select_entryref_tag_query  = stringbuilder() << "SELECT EntryRef, Tag FROM Tags WHERE Tag IN (" << sql_parameters(_tags_list.size()) << ")";
+    auto tags = sql_return_value<std::unordered_map, int, std::vector<std::string>>(db, select_entryref_tag_query,
+        [](sqlite3_stmt* stmt, std::unordered_map<int, std::vector<std::string>>* m){
+            (*m)[sqlite3_column_int(stmt, 0)].emplace_back(to_str(sqlite3_column_text(stmt, 1)));
         },
-        [&](sqlite3_stmt* stmt){
+        [&_tags_list](sqlite3_stmt* stmt){
             return sql_bind(stmt, _tags_list);
         }
     );
 
-    auto sql_tags = sql_return_value<std::unordered_map, int, std::vector<std::string>>(db, entryref_select_entryref_tags_str(entries.size()),
-        [](sqlite3_stmt* stmt, std::unordered_map<int, std::vector<std::string>>* m){
-            (*m)[sqlite3_column_int(stmt, 0)].emplace_back(to_str(sqlite3_column_text(stmt, 1)));
+    std::string select_entries_query  = stringbuilder() <<
+    "SELECT Entries.Id, Entries.Date, Entries.Text FROM Tags " <<
+    "INNER JOIN Entries ON (Tags.EntryRef = Entries.Id) " <<
+    "WHERE Tag IN (" << sql_parameters(_tags_list.size()) << ")";
+
+    return sql_return_value<std::vector, Entry>(db, select_entries_query,
+        [&tags](sqlite3_stmt* stmt, std::vector<Entry>* vec){
+            int id = sqlite3_column_int(stmt, 0);
+            vec->emplace_back(
+                Entry{
+                    id,
+                    to_str(sqlite3_column_text(stmt, 1)),
+                    to_str(sqlite3_column_text(stmt, 2)),
+                    std::move(tags[id])
+                    }
+            );
         },
-        [&](sqlite3_stmt* stmt){
-            return sql_bind(stmt, entries);
+        [&_tags_list](sqlite3_stmt* stmt){
+            return sql_bind(stmt, _tags_list);
         }
     );
-    
-    const char* entries_select = "SELECT Date, Text FROM Entries WHERE Id = ?1";
-	for (auto x = sql_tags.begin(); x != sql_tags.end(); ++x) {
-		auto val = sql_return_value_single<std::pair<std::string, std::string>>(db, entries_select,
-			[](sqlite3_stmt* stmt) {
-				auto date = to_str(sqlite3_column_text(stmt, 0));
-				auto text = to_str(sqlite3_column_text(stmt, 1));
-				return std::make_pair(date, text);
-			},
-			[&](sqlite3_stmt* stmt){
-                return sql_bind(stmt, x->first);
-            }
-        );
-        if(val.first == true){  
-            out.emplace_back( Entry{ x->first, std::move(val.second.first), std::move(val.second.second), std::move(x->second)} );
-        }
-    }
 
-    return out;
 }
 
 
@@ -286,11 +246,11 @@ std::vector<Entry> DB::get_all_entries() {
     if(!is_open()) return std::vector<Entry>();
     const char* select = "SELECT Id, Date, Text FROM Entries;";
     return sql_return_value<std::vector, Entry>(db, select, [](sqlite3_stmt* stmt, std::vector<Entry>* vec) {
-        int id = sqlite3_column_int(stmt, 0);
-        auto date = to_str(sqlite3_column_text(stmt, 1));
-        auto text = to_str(sqlite3_column_text(stmt, 2));
-        vec->emplace_back(Entry{id, date, text});
-        //return Entry{id, date, text};
+        vec->emplace_back(Entry{
+            sqlite3_column_int(stmt, 0), 
+            to_str(sqlite3_column_text(stmt, 1)),
+            to_str(sqlite3_column_text(stmt, 2))
+        });
     }, nullptr);
 }
 
@@ -300,7 +260,6 @@ std::vector<std::string> DB::get_tags(int id) {
     return sql_return_value<std::vector, std::string>(db, select, 
         [](sqlite3_stmt* stmt, std::vector<std::string>* vec) {
             vec->emplace_back(to_str(sqlite3_column_text(stmt, 0)));
-            //return std::string{to_str(sqlite3_column_text(stmt, 0))};
         }, 
         [id](sqlite3_stmt* stmt){
             return sql_bind(stmt, id);
@@ -308,6 +267,7 @@ std::vector<std::string> DB::get_tags(int id) {
     );
 }
 
+// TODO: bad return values, for the single too. sqlite returns 0 for ok, this can be missunderstood
 bool DB::sql(const std::string& str) {
     char* err_msg{ nullptr };
     auto status = sqlite3_exec(db, str.c_str(), 0, 0, &err_msg);

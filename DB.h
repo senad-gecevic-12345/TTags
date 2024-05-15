@@ -35,7 +35,6 @@ struct stringbuilder
     operator std::string() { return ss.str(); }
 };
 
-
 Date current_date();
 
 class DB{
@@ -78,3 +77,4 @@ public:
 	~DB();
 };
 
+std::string sql_parameters(int count, std::string sep = ", ");
