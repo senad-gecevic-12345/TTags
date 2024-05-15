@@ -85,24 +85,22 @@ void C_Main::clear_accell_table() {
 }
 
 
-C_Main::C_Main() : wxFrame(nullptr, wxID_ANY, "Window", wxPoint(0, 0), wxSize(800, 600)) {
+C_Main::C_Main() : wxFrame(nullptr, wxID_ANY, "Window", wxPoint(0, 0), wxSize(800, 600)){
 	auto color = wxColor(6, 20, 46);
 	this->SetBackgroundColour(color);
 
 
-    log = new wxNotebook();
 	add = new wxButton(this, WIDGETS::ADD, "Add", wxPoint(10, 40), wxSize(150, 40));
-	focus = new wxObject();
+	//focus = new wxObject();
 	publish = new wxButton(this, WIDGETS::PUBLISH, "Publish", wxPoint(160, 40), wxSize(150, 40));
     txt_1 = new wxTextCtrl(this, wxID_ANY, "", wxPoint(10, 85), wxSize(300, 30));
 	vim_editor = new wxRichTextCtrl(this, wxID_ANY, "", wxPoint(400, 140), wxSize(300, 300), wxTE_MULTILINE);
 	list = new wxListBox(this, WIDGETS::LIST, wxPoint(10, 140), wxSize(300, 300));
-    menu = new wxMenuBar();
-	nav = new wxMenu();
-	file = new wxMenu();
+    auto* menu = new wxMenuBar();
+	auto* nav = new wxMenu();
+	auto* file = new wxMenu();
 	vim_command_line = (new wxTextCtrl(this, wxID_ANY, ""));
 	vim_command_history = (new wxTextCtrl(this, wxID_ANY, "", wxPoint(), wxSize(), wxTE_MULTILINE));
-
 
 	add->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& evt)->void {
 		if (txt_1->IsEmpty()) { return; }
@@ -115,7 +113,6 @@ C_Main::C_Main() : wxFrame(nullptr, wxID_ANY, "Window", wxPoint(0, 0), wxSize(80
 		vim_editor->AppendText((LIST_FUNC::get_str(list)) + wxString("\n"));
 		});
 
-	
 	auto attr = vim_editor->GetBasicStyle();
 	attr.SetTextColour(wxColour(255, 255, 255));
 	vim_editor->SetBasicStyle(attr);
@@ -200,6 +197,7 @@ C_Main::C_Main() : wxFrame(nullptr, wxID_ANY, "Window", wxPoint(0, 0), wxSize(80
 	nav->Append(VIM_KEYS::DEFAULT_STYLE, "DEFAULT");
 
 
+	// dunno about how to delete nav and file etc
 	menu->Append(nav, "navigation");
 	menu->Append(file, "file");
 
@@ -220,6 +218,14 @@ C_Main::C_Main() : wxFrame(nullptr, wxID_ANY, "Window", wxPoint(0, 0), wxSize(80
 	vim_editor->SetFocus();
 }
 
+C_Main::~C_Main(){
+    delete add;
+    delete publish;
+    delete vim_editor;
+    delete list;
+    delete txt_1;
+    Window::delete_window_tree(resize_tree);
+}
 
 // works for one but not vim input
 void C_Main::menu_callback(wxCommandEvent& evt) {
@@ -276,16 +282,11 @@ void C_Main::resize(wxSizeEvent& evt) {
 	auto [x, y] = evt.GetSize();
 	evt.Skip();
 
-	// is border size...
     resize_tree->resize({ x-16, y-59, 0, 0 });
 
 	Refresh();
-
 }
 
-// WINDOW
-
-// TODO: FRAME IS UNUSED
 Window::Window(bool is_horizontal, wxWindow* frame)
 	: obj(frame), is_horizontal(is_horizontal)
 {}
@@ -335,7 +336,7 @@ int Window::resize(WindowSizeData p_size) {
 
     for (int i = 0; i < mem.count; ++i) {
         p_size = border_window;
-        set_children_size(&p_size, offset, i, args);
+        set_children_size_offset(&p_size, offset, i, args);
         { 
             if (i != mem.count - 1) {
                 if (mem.windows[i]->border_size.get_length(is_horizontal) == mem.windows[i + 1]->border_size.get_length(is_horizontal)) {
@@ -354,9 +355,9 @@ int Window::resize(WindowSizeData p_size) {
     return window_size.get_length(is_horizontal);
 }
 
-void Window::set_children_size(WindowSizeData* arr, int offset, int it, const Sizer& args) {
+void Window::set_children_size_offset(WindowSizeData* arr, int offset, int it, const Sizer& args) {
     auto[x, y] = args.get_space(it);
-    arr->width = x;
+    arr->width  = x;
     arr->height = y;
     arr->get_offset(is_horizontal) += offset;
 }
@@ -395,11 +396,11 @@ std::pair<int, int> Window::Sizer::get_offset_position_to_center(int width, int 
 
 std::pair<int, int> Window::Sizer::get_space(int x)const {
     //if (x >= get_count()) { return -1; }
-    auto set_output = [this](int x)->std::pair<int, int> {
+    auto set_output = [this](int length)->std::pair<int, int> {
         if (this->is_horizontal)
-                return std::make_pair(x, this->window_size->get_height());
+                return std::make_pair(length, this->window_size->get_height());
         else 
-                return std::make_pair(this->window_size->get_width(), x);
+                return std::make_pair(this->window_size->get_width(), length);
     };
 
     if (is_last_norm(x)) {

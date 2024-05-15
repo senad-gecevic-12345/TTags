@@ -90,10 +90,8 @@ struct Window {
 		Memory(Memory&& other) = delete;
 		Memory& operator =	(Memory&& other) = delete;
 		~Memory() {
-            if(windows != nullptr)
-                delete[] windows;
-            if(sizes != nullptr)
-                delete[] sizes;
+            delete[] windows;
+            delete[] sizes;
 		}
 		friend class Window;
 
@@ -150,9 +148,7 @@ struct Window {
 	wxWindow* obj{nullptr};
 	std::function<void(int, int)> on_resize_callback;
 
- 
-
-    void set_children_size(WindowSizeData* arr, int offset, int it, const Sizer& args);
+    void set_children_size_offset(WindowSizeData* arr, int offset, int it, const Sizer& args);
 	int resize(WindowSizeData p_size);
 	Window* add(bool is_horizontal, wxWindow* frame = nullptr, const std::string& debug = "");
 
@@ -173,27 +169,17 @@ Window* window_test(wxSize size, wxWindow* add, wxWindow* publish, wxWindow* tex
 
 class C_Main : public wxFrame
 {
-public:
 
-	wxMenuBar* menu;
-	wxMenu* nav;
-	wxMenu* file;
 	Window* resize_tree{nullptr};
 
-
-	wxButton* add = nullptr;
-	wxButton* publish = nullptr;
-	wxObject* focus = nullptr;
-
-	wxRichTextCtrl* vim_editor = nullptr;
-	wxListBox* list = nullptr;
-	wxTextCtrl* txt_1 = nullptr;
-	wxTextCtrl* vim_input = nullptr;
+	wxButton* add{nullptr};
+	wxButton* publish{nullptr};
+	wxRichTextCtrl* vim_editor{nullptr};
+	wxListBox* list{nullptr};
+	wxTextCtrl* txt_1{nullptr};
 
 	wxSharedPtr<wxTextCtrl> vim_command_line;
 	wxSharedPtr<wxTextCtrl> vim_command_history;
-    wxNotebook* log;
-	
 
 	void save();
 	void update_accell_table();
@@ -203,7 +189,14 @@ public:
 	std::function<void(int)> vim_font_resize;
 	void menu_callback(wxCommandEvent& evt);
 	bool mode{ 0 };
+    
+public:
+    C_Main operator=(const C_Main& other)=delete;
+    C_Main(const C_Main& other)=delete;
+    C_Main operator=(C_Main&& other)=delete;
+    C_Main(C_Main&& other)=delete;
 	C_Main();
+	~C_Main();
 	DECLARE_EVENT_TABLE()
 };
 
