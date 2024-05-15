@@ -165,6 +165,7 @@ bool DB::open_db(const char* file_loc_name) {
 void DB::close_db() {
     if(db != nullptr)
         sqlite3_close(db);
+    db = nullptr;
 }
 
 int DB::new_entry_to_database(const std::string& text, const std::vector<std::string>& tags) {
