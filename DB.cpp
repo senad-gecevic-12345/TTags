@@ -28,13 +28,13 @@ static int sql_bind_spec(sqlite3_stmt* stmt, const std::string& str, int count =
 }
 
 template<typename... Args>
-bool sql_bind(sqlite3_stmt* stmt, Args... args){
+static bool sql_bind(sqlite3_stmt* stmt, Args... args){
     int count{0};
 	return ((SQL_RETURN::OK == sql_bind_spec(stmt, args, ++count)) == ...);
 }
 
 template<typename T>
-bool sql_bind(sqlite3_stmt* stmt, const std::vector<T>& vec){
+static bool sql_bind(sqlite3_stmt* stmt, const std::vector<T>& vec){
     static_assert(std::is_same<T, int>::value || std::is_same<T, std::string>::value);
     int count{0};
     for(const auto& x : vec){
@@ -207,7 +207,8 @@ int DB::new_entry(){
 std::vector<Entry> DB::get_entries_with_tags(const std::vector<std::string>& _tags_list) {
     if(!is_open())return std::vector<Entry>();
 
-    std::string select_entryref_tag_query  = stringbuilder() << "SELECT EntryRef, Tag FROM Tags WHERE Tag IN (" << sql_parameters(_tags_list.size()) << ")";
+    std::string select_entryref_tag_query  = stringbuilder() << 
+		"SELECT EntryRef, Tag FROM Tags WHERE Tag IN (" << sql_parameters(_tags_list.size()) << ")";
     auto tags = sql_return_value<std::unordered_map, int, std::vector<std::string>>(db, select_entryref_tag_query,
         [](sqlite3_stmt* stmt, std::unordered_map<int, std::vector<std::string>>* m){
             (*m)[sqlite3_column_int(stmt, 0)].emplace_back(to_str(sqlite3_column_text(stmt, 1)));
@@ -218,10 +219,9 @@ std::vector<Entry> DB::get_entries_with_tags(const std::vector<std::string>& _ta
     );
 
     std::string select_entries_query  = stringbuilder() <<
-    "SELECT Entries.Id, Entries.Date, Entries.Text FROM Tags " <<
-    "INNER JOIN Entries ON (Tags.EntryRef = Entries.Id) " <<
-    "WHERE Tag IN (" << sql_parameters(_tags_list.size()) << ")";
-
+		"SELECT Entries.Id, Entries.Date, Entries.Text FROM Tags " <<
+		"INNER JOIN Entries ON (Tags.EntryRef = Entries.Id) " <<
+		"WHERE Tag IN (" << sql_parameters(_tags_list.size()) << ")";
     return sql_return_value<std::vector, Entry>(db, select_entries_query,
         [&tags](sqlite3_stmt* stmt, std::vector<Entry>* vec){
             int id = sqlite3_column_int(stmt, 0);
@@ -326,11 +326,17 @@ DB::DB(const char* file_loc_name){
 }
 
 
-DB::DB(DB&& other)noexcept:db(std::exchange(other.db, nullptr)){entry_id_assign = other.entry_id_assign;}
+DB::DB(DB&& other)noexcept:
+    db(std::exchange(other.db, nullptr)),
+    deletion(std::move(other.deletion)),
+    entry_id_assign(std::move(other.entry_id_assign))
+{}
 
 DB& DB::operator=(DB&& other)noexcept{
-    db = std::exchange(other.db, nullptr);
-    entry_id_assign = other.entry_id_assign;
+    close_db();
+    db = std::move(other.db);
+    deletion = std::move(other.deletion);
+    entry_id_assign = std::move(other.entry_id_assign);
     return *this;
 }
 
