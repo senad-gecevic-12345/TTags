@@ -339,36 +339,20 @@ int Window::resize(WindowSizeData p_size) {
 
         { 
             if (i != mem.count - 1) {
-                if (is_horizontal) {
-                    if (mem.windows[i]->border_size.width == mem.windows[i + 1]->border_size.width) {
-                        const auto change_offset = mem.windows[i]->border_size.width;
-                        offset -= change_offset;
-                        reserve += change_offset;
-                    }
-                }
-                else {
-                    if (mem.windows[i]->border_size.height == mem.windows[i + 1]->border_size.height) {
-                        const auto change_offset = mem.windows[i]->border_size.height;
-                        offset -= change_offset;
-                        reserve += change_offset;
-                    }
+                if (mem.windows[i]->border_size.get_length(is_horizontal) == mem.windows[i + 1]->border_size.get_length(is_horizontal)) {
+                    const auto change_offset = mem.windows[i]->border_size.get_length(is_horizontal);
+                    offset -= change_offset;
+                    reserve += change_offset;
                 }
             }
             else{
-                if(is_horizontal)
-                    p_size.width += reserve;
-                else
-                    p_size.height += reserve;
+                p_size.get_length(is_horizontal) += reserve;
             }
         }
-
         mem.windows[i]->resize(p_size);
-        if (is_horizontal) 
-            offset += mem.windows[i]->window_size.width;
-        else
-            offset += mem.windows[i]->window_size.height;
+        offset += mem.windows[i]->window_size.get_length(is_horizontal);
     }
-    return is_horizontal ? window_size.width : window_size.height;
+    return window_size.get_length(is_horizontal);
 }
 
 void Window::set_offset_values(WindowSizeData* arr, int offset, int it, const Sizer& args) {
@@ -492,8 +476,6 @@ void Window::print_window_helper(Window* window, const std::string& file_name_lo
 }
 
 Window* window_test(wxSize size, wxWindow* add, wxWindow* publish, wxWindow* text, wxWindow* list, wxRichTextCtrl* vim, wxWindow* vim_command, wxWindow* vim_history){
-
-	const int main_pre_alloc{2};
     auto main = new Window(1, nullptr);
 	main->size_args(2, 20, 80);
 

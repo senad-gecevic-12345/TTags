@@ -17,6 +17,9 @@ struct Window {
 		int get_height()const { return height; }
 		int get_posx()const { return posx; }
 		int get_posy()const { return posy; }
+        int& get_length(bool is_horizontal){
+            return is_horizontal ? width : height;
+        }
 		WindowSizeData operator + (const WindowSizeData& other) {
 			WindowSizeData out = *this;
 			out.width += other.width;
@@ -31,7 +34,6 @@ struct Window {
 		int alloc_count{ 0 };
 		Window** windows{ nullptr };
 		int* sizes{ nullptr };
-		bool empty() { return count > 0; }
 		void allocate(int no_new_items = 1) {
 			{
 				bool newly_allocated = false;
@@ -145,6 +147,7 @@ struct Window {
 	wxWindow* obj{nullptr};
 	std::function<void(int, int)> on_resize_callback;
 
+ 
 
     void set_offset_values(WindowSizeData* arr, int offset, int it, const Sizer& args);
 	int resize(WindowSizeData p_size);
