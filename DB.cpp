@@ -28,7 +28,7 @@ static int sql_bind_spec(sqlite3_stmt* stmt, const std::string& str, int count =
 }
 
 template<typename... Args>
-static bool sql_bind(sqlite3_stmt* stmt, Args... args){
+static bool sql_bind(sqlite3_stmt* stmt, const Args&... args){
     int count{0};
 	return ((SQL_RETURN::OK == sql_bind_spec(stmt, args, ++count)) == ...);
 }
