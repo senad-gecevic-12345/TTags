@@ -15,7 +15,7 @@
 
 struct SQL_RETURN {
 	enum {
-		OK = 0
+		OK = SQLITE_OK
 	};
 };
 
@@ -24,13 +24,17 @@ static int sql_bind_spec(sqlite3_stmt* stmt, int num, int count = 1){
 }
 
 static int sql_bind_spec(sqlite3_stmt* stmt, const std::string& str, int count = 1){
-    return sqlite3_bind_text(stmt, count, str.c_str(), -1, SQLITE_STATIC);
+	char* alloc_str = (char*)malloc((sizeof(char) * (str.size() + 1)));
+	if (alloc_str == NULL) return SQLITE_ERROR;
+	memcpy((void*)alloc_str, &str[0], sizeof(char) * str.size());
+	alloc_str[str.size()] = '\0';
+	return sqlite3_bind_text(stmt, count, alloc_str, -1, [](void* ptr) { free(ptr); });
 }
 
 template<typename... Args>
 static bool sql_bind(sqlite3_stmt* stmt, const Args&... args){
     int count{0};
-	return ((SQL_RETURN::OK == sql_bind_spec(stmt, args, ++count)) == ...);
+	return ((SQLITE_OK == sql_bind_spec(stmt, args, ++count)) == ...);
 }
 
 template<typename T>
@@ -43,33 +47,19 @@ static bool sql_bind(sqlite3_stmt* stmt, const std::vector<T>& vec){
     return true;
 }
 
-static std::string char_double(const std::string& str, int num, ...){
-	assert(num <= 8);
-	std::array<char, 8> list;
-	va_list args;
-	va_start(args, num);
-	for (int i = 0; i < num; ++i) {
-		list[i] = va_arg(args, char);
-	}
-	va_end(args);
-	std::string out; 
-	out.reserve(str.size()); 
-	for (auto x : str) { 
-		for (int y = 0; y < num; ++y) {
-			if (x == list[y]) {
-				out += x;
-				break;
-			} 
-		}
-		out += x;
-	}
-	return out;
+template<typename... Args>
+static bool sql_bind_multiple_calls(int* multiple_call_counter, sqlite3_stmt* stmt, const Args&... args){
+	return ((SQLITE_OK == sql_bind_spec(stmt, args, ++(*multiple_call_counter))) == ...);
 }
 
-static std::string tags_add_str(int entry_ref, const std::string& tag)                    {	return stringbuilder() << "INSERT INTO Tags(Tag, EntryRef) VALUES('" << tag << "' , '" << entry_ref << "');"; }
-static std::string tags_delete_str(int entry_ref)                                         {	return stringbuilder() << "DELETE FROM Tags WHERE EntryRef = " 	<< entry_ref << ";"; }
-static std::string entries_text_update_str(int entry_id, const std::string& text)         {	return stringbuilder() << "UPDATE Entries SET Text = '" << text << "' WHERE Id = " << entry_id << ";"; }
-static std::string entries_add_str(const std::string& date, const std::string& text)      {	return stringbuilder() << "INSERT INTO Entries(Date, Text) VALUES('" << date << "' , '" << text << "');"; }
+template<typename T>
+static bool sql_bind_multiple_calls(int* multiple_call_counter, sqlite3_stmt* stmt, const std::vector<T>& vec){
+    static_assert(std::is_same<T, int>::value || std::is_same<T, std::string>::value);
+    for(const auto& x : vec){
+		if (bool val = sql_bind_spec(stmt, x, ++(*multiple_call_counter)); val != SQL_RETURN::OK) return false;
+    }
+    return true;
+}
 
 Date current_date() {
     time_t a = time(nullptr);
@@ -88,15 +78,7 @@ static std::string to_str(const unsigned char* ptr) {
     return str;
 }
 
-template<typename... Args>
-static std::string str_gen(Args... args){
-    stringbuilder s;
-    (s << ... << args);
-    return s;
-}
 
-// for the read entries, dont really want a return value. want just to write out the values to the display. therefore need no return value. can just not use it. but think should have another named for each or something
-// write the bind and non bind to call the other function, and then call it with nullptr or not
 template<template<class...>class S, class... T>
 static S<T...> sql_return_value(sqlite3* db, const std::string& str, std::function<void(sqlite3_stmt*, S<T...>*)> add, std::function<bool(sqlite3_stmt*)> bind = nullptr) {
     S<T...> s;
@@ -137,11 +119,39 @@ static std::pair<bool, T> sql_return_value_single(sqlite3* db, const std::string
     return std::make_pair(return_status, out);
 }
 
+static bool sql_exec(sqlite3* db, const std::string& str, std::function<bool(sqlite3_stmt*)> bind = nullptr) { 
+    bool return_status{false};
+    const char* select = str.c_str();
+    sqlite3_stmt* stmt;
+    auto ret = sqlite3_prepare_v2(db, select, -1, &stmt, 0);
+    bool bind_ok = true;
+    if(bind != nullptr)
+        bind_ok = bind(stmt);
+    if (!ret && bind_ok) {
+        while (sqlite3_step(stmt) == SQLITE_ROW) {}
+	    return_status = true; 
+    }
+    sqlite3_finalize(stmt);
 
-std::string sql_parameters(int count, std::string sep){
+    return return_status;
+}
+
+std::string sql_parameters(int count, const std::string& sep){
     stringbuilder out;
     for(int i = 0; i < count; ++i){
         out << "?" << i + 1;
+        if(i != count - 1){
+            out << sep;
+        }
+    }
+    return out;
+
+}
+
+std::string string_list(int count, const std::string& str, const std::string& sep){
+    stringbuilder out;
+    for(int i = 0; i < count; ++i){
+        out << str;
         if(i != count - 1){
             out << sep;
         }
@@ -172,31 +182,61 @@ int DB::new_entry_to_database(const std::string& text, const std::vector<std::st
     if(!is_open())return -1;
     
 	auto date = current_date().to_str();
-    if(!sql(entries_add_str(date, text))) return -1;
+    //if(!sql(entries_add_str(date, text))) return -1;
+	sql_exec(db, "INSERT INTO Entries(Date, Text) VALUES(?, ?);", 
+		[&date, &text](sqlite3_stmt* stmt) {
+			return sql_bind(stmt, date, text);
+		}
+	);
     auto val = sql_return_value_single<int>(db, "SELECT LAST_INSERT_ROWID();", [](sqlite3_stmt* stmt){
         return sqlite3_column_int(stmt, 0);
     }, nullptr);
     if(val.first == false){return -1;}
 
-    for(const auto& x : tags){
-        sql(tags_add_str(val.second, x));
-    }
+	if(tags.size() > 0)
+		sql_exec(db, stringbuilder() << "INSERT INTO Tags(Tag, EntryRef) VALUES" << string_list(tags.size(), "(?, ?)", ", "),
+			[&tags, val](sqlite3_stmt* stmt){
+				int count{0};
+				bool status{true};
+				for (auto& x : tags) {
+					if (!sql_bind_multiple_calls(&count, stmt, x, val.second)) status = false;
+				}
+				return status;
+			}
+		);
 
     return val.second;
 }
 
 int DB::save_entry(int entry, const std::string& text, const std::vector<std::string>& tags){
-	auto s = char_double(text, 1, '\'');
 
     if(entry < 0){
-        entry = new_entry_to_database(s, tags);
+        entry = new_entry_to_database(text, tags);
     }
     else{
-        sql(entries_text_update_str(entry, s));
-        sql(tags_delete_str(entry));
-		for(const auto& x : tags)
-			sql(tags_add_str(entry, x));
-    }
+		sql_exec(db, "UPDATE Entries SET Text = ? WHERE Id = ?", 
+			[&text, entry](sqlite3_stmt* stmt) 
+			{
+				return sql_bind(stmt, text, entry);
+			}
+		);
+		sql_exec(db, "DELETE FROM Tags WHERE EntryRef = ?", 
+			[entry](sqlite3_stmt* stmt) 
+			{
+				return sql_bind(stmt, entry); 
+			}
+		);
+        sql_exec(db, stringbuilder() << "INSERT INTO Tags(Tag, EntryRef)" << string_list(tags.size(), "VALUES(?, ?)", ", "),
+            [&tags, entry](sqlite3_stmt* stmt){
+                int count{0};
+				bool status{true};
+				for (auto& x : tags) {
+					if (!sql_bind_multiple_calls(&count, stmt, x, entry)) status = false;
+				}
+				return status;
+            }
+        );
+	}
 	return entry;
 }
 
@@ -257,7 +297,7 @@ std::vector<Entry> DB::get_all_entries() {
 
 std::vector<std::string> DB::get_tags(int id) {
     if(!is_open()) return std::vector<std::string>();
-    auto select = "SELECT Tag FROM Tags WHERE EntryRef = ?1";
+    auto select = "SELECT Tag FROM Tags WHERE EntryRef = ?";
     return sql_return_value<std::vector, std::string>(db, select, 
         [](sqlite3_stmt* stmt, std::vector<std::string>* vec) {
             vec->emplace_back(to_str(sqlite3_column_text(stmt, 0)));

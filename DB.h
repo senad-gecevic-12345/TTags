@@ -39,15 +39,14 @@ Date current_date();
 
 class DB{
 	sqlite3* db{nullptr};
+    std::vector<int> deletion;
+    int entry_id_assign{-1};
+
 	bool sql(const std::string& str);
 	bool open_db(const char* file_loc_name);
 	void close_db();
 	bool create_tables();
-	bool create_tables_temp();
-
-    std::vector<int> deletion;
 	int new_entry_to_database(const std::string& text, const std::vector<std::string>& tags);
-    int entry_id_assign{-1};
 
 public:
 
@@ -77,4 +76,5 @@ public:
 	~DB();
 };
 
-std::string sql_parameters(int count, std::string sep = ", ");
+std::string sql_parameters(int count, const std::string& sep = ", ");
+std::string string_list(int count, const std::string& str, const std::string& sep = ", ");

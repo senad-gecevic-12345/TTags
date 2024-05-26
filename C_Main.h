@@ -102,7 +102,6 @@ struct Window {
 		bool is_last_norm(int x)const	{ return x == last_norm; }
 		double get_percent(int x)const	{ return double(memory->get_size(x)) / 100.0; } 
 
-		std::pair<int, int> get_offset_position_to_center(int width, int height);
 	public:
 		int get_count()const { return memory->get_count(); }
 		bool has_any_specified_size()const	{ return specified_size > 0; } 
@@ -136,10 +135,7 @@ struct Window {
     void set_children_size_offset(WindowSizeData* arr, int offset, int it, const Sizer& args);
 	int resize(WindowSizeData p_size);
 	Window* add(bool is_horizontal, wxWindow* frame = nullptr, const std::string& debug = "");
-
 	static void delete_window_tree(Window* window);
-	static void print_window_tree_to_file(Window* window, FILE* file, int depth = 0);
-	static void print_window_helper(Window* window, const std::string& file_name_loc);
 
 
 	Window(const Window&& other) = delete;
@@ -151,6 +147,23 @@ struct Window {
 };
 
 Window* window_test(wxSize size, wxWindow* add, wxWindow* publish, wxWindow* text, wxWindow* list, wxRichTextCtrl* vim, wxWindow* vim_command, wxWindow* vim_history);
+
+class C_Main;
+
+struct Command {
+	wxString str;
+	void(*cmd)(const wxString&, C_Main*);
+
+	Command(wxString str, 	void(*cmd)(const wxString&, C_Main*)=nullptr)
+		:str(str), cmd(cmd) {}
+	bool operator == (const Command& search)const {
+		return str == search.str;
+	}
+	bool operator < (const Command& other)const {
+		return std::string(str) < std::string(other.str);
+	}
+};
+
 
 class C_Main : public wxFrame
 {
@@ -173,7 +186,12 @@ class C_Main : public wxFrame
 	std::function<void(int)> vim_font_resize;
 	void menu_callback(wxCommandEvent& evt);
 	bool mode{ 0 };
-    
+
+	std::set<Command> commands;
+
+
+	void command_callback(const wxString& str);
+
 public:
     C_Main operator=(const C_Main& other)=delete;
     C_Main(const C_Main& other)=delete;
@@ -183,5 +201,8 @@ public:
 	~C_Main();
 	DECLARE_EVENT_TABLE()
 };
+
+
+
 
 #endif

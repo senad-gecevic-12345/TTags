@@ -56,18 +56,11 @@ void C_Main::update_accell_table() {
 	entries[1].Set(wxACCEL_NORMAL,	(int) 'L', VIM_KEYS::L);
 	entries[2].Set(wxACCEL_CTRL,	(int) 'W', VIM_KEYS::W);
 	entries[3].Set(wxACCEL_NORMAL,	(int) WXK_ESCAPE, VIM_KEYS::W_CANCEL);
-
 	entries[4].Set(wxACCEL_CTRL,	(int) 'H', VIM_KEYS::H);
 	entries[5].Set(wxACCEL_CTRL,	(int) 'L', VIM_KEYS::L);
-	// works but not Y X
-	entries[6].Set(wxACCEL_CTRL,	(int) '+', VIM_KEYS::RESIZE_PLUS); // is it already reserved?
+	entries[6].Set(wxACCEL_CTRL,	(int) '+', VIM_KEYS::RESIZE_PLUS); 
 	entries[7].Set(wxACCEL_CTRL,	(int) '-', VIM_KEYS::RESIZE_MINUS);
-
 	entries[8].Set(wxACCEL_CTRL,	(int) WXK_F1, VIM_KEYS::DEFAULT_STYLE);
-
-
-
-	//entries[6].Set(wxACCEL_SHIFT,	(int) NK_SEMICOLON, FILECTRL::SAVE);
 
 	wxAcceleratorTable table(9, entries);
 	this->SetAcceleratorTable(table);
@@ -85,17 +78,37 @@ void C_Main::clear_accell_table() {
 }
 
 
+
+
+
+void C_Main::command_callback(const wxString& str) {
+	auto process = [](const wxString& str)->std::pair<wxString, wxString>{
+		int i{ 0 };
+		for ( ; i < str.size(); ++i) {
+			if (str[i] == ' ') 
+				break;
+		}
+		return std::make_pair(str.Mid(0, i), str.Mid(i, str.size()));
+	};
+	auto [cmd, param] = process(str);
+	if (auto s = commands.find(cmd); s != commands.end()) {
+		s->cmd(param, this);
+	}
+}
+
+
+
+
 C_Main::C_Main() : wxFrame(nullptr, wxID_ANY, "Window", wxPoint(0, 0), wxSize(800, 600)){
 	auto color = wxColor(6, 20, 46);
 	this->SetBackgroundColour(color);
 
 
-	add = new wxButton(this, WIDGETS::ADD, "Add", wxPoint(10, 40), wxSize(150, 40));
-	//focus = new wxObject();
-	publish = new wxButton(this, WIDGETS::PUBLISH, "Publish", wxPoint(160, 40), wxSize(150, 40));
-    txt_1 = new wxTextCtrl(this, wxID_ANY, "", wxPoint(10, 85), wxSize(300, 30));
+	add =		new wxButton(this, WIDGETS::ADD, "Add", wxPoint(10, 40), wxSize(150, 40));
+	publish =	new wxButton(this, WIDGETS::PUBLISH, "Publish", wxPoint(160, 40), wxSize(150, 40));
+    txt_1 =		new wxTextCtrl(this, wxID_ANY, "", wxPoint(10, 85), wxSize(300, 30));
 	vim_editor = new wxRichTextCtrl(this, wxID_ANY, "", wxPoint(400, 140), wxSize(300, 300), wxTE_MULTILINE);
-	list = new wxListBox(this, WIDGETS::LIST, wxPoint(10, 140), wxSize(300, 300));
+	list =		new wxListBox(this, WIDGETS::LIST, wxPoint(10, 140), wxSize(300, 300));
     auto* menu = new wxMenuBar();
 	auto* nav = new wxMenu();
 	auto* file = new wxMenu();
@@ -117,56 +130,23 @@ C_Main::C_Main() : wxFrame(nullptr, wxID_ANY, "Window", wxPoint(0, 0), wxSize(80
 	attr.SetTextColour(wxColour(255, 255, 255));
 	vim_editor->SetBasicStyle(attr);
 
+
+	commands.emplace(Command{ ":write",  [](const wxString& str, C_Main* editor) { editor->vim_editor->save(); } });
+	commands.emplace(Command{ ":wq",	 [](const wxString& str, C_Main* editor) { editor->vim_editor->save(); editor->Destroy(); } });
+	commands.emplace(Command{ ":wa",	 [](const wxString& str, C_Main* editor) { editor->vim_editor->save(); } });
+	commands.emplace(Command{ ":q",	     [](const wxString& str, C_Main* editor) { editor->Destroy(); } });
+	commands.emplace(Command{ ":delete", [](const wxString& str, C_Main* editor) { editor->vim_editor->delete_segment();} });
+	commands.emplace(Command{ ":del",    [](const wxString& str, C_Main* editor) { editor->vim_editor->delete_segment();} });
+	commands.emplace(Command{ ":mb",	 [](const wxString& str, C_Main* editor) { editor->vim_editor->merge_segment(true); } });
+	commands.emplace(Command{ ":ma",     [](const wxString& str, C_Main* editor) { editor->vim_editor->merge_segment(false); } });
+	commands.emplace(Command{ ":search", [](const wxString& str, C_Main* editor) { editor->vim_editor->open_tags(str); } });
+	commands.emplace(Command{ ":s",      [](const wxString& str, C_Main* editor) { editor->vim_editor->open_tags(str); } });
+	commands.emplace(Command{ ":t",      [](const wxString& str, C_Main* editor) { editor->vim_editor->add_tag(str); } });
+	commands.emplace(Command{ ":rt",     [](const wxString& str, C_Main* editor) { editor->vim_editor->remove_tag(str); } });
+	commands.emplace(Command{ ":nt",     [](const wxString& str, C_Main* editor) { editor->vim_editor->new_segment(str); } });
+
 	vim_editor->set_vim_editor([this](wxString str) { 
-        if (str.Mid(0, 5) == ":mark") {
-            //data->vim_editor->set_color_for_selection();
-        }
-        else if (str.Mid(0, 2) == ":w") {
-            vim_editor->save();
-        }
-
-        else if (str.Mid(0, 3) == ":wa") {
-            vim_editor->save();
-        }		
-        else if (str.Mid(0, 3) == ":wq") {
-            vim_editor->save();
-            Destroy();
-        }
-        else if (str.Mid(0, 7) == ":delete") {
-            vim_editor->delete_segment(vim_editor->get_current_segment_pos());
-        }
-        else if (str.Mid(0, 3) == ":ma") {
-            vim_editor->merge_segment(false, vim_editor->get_current_segment_pos());
-
-        }
-        else if (str.Mid(0, 3) == ":mb") {
-            vim_editor->merge_segment(true, vim_editor->get_current_segment_pos());
-
-        }
-        else if (str.Mid(0, 4) == ":del") {
-            vim_editor->delete_segment(vim_editor->get_current_segment_pos());
-        }
-        else if (str.Mid(0, 2) == ":q") {
-            Destroy();
-        }
-        else if(str.Mid(0, 3) == ":ps"){
-            wxMessageBox(vim_editor->get_segment_text(vim_editor->get_current_segment_pos()));
-        }
-        else if(str.Mid(0, 5) == ":endl"){
-            wxMessageBox(std::to_string(vim_editor->calc_trailing_endlines(vim_editor->get_current_segment_pos())));
-        }
-        else if(str.Mid(0, 2) == ":s"){
-            vim_editor->open_tags(str.Mid(2, str.size()));
-        }
-        else if (str.Mid(0, 3) == ":nt") {
-            vim_editor->new_segment(str.Mid(3, str.size()));
-        }
-        else if(str.Mid(0, 2) == ":t") { // tag
-            vim_editor->add_tag(str.Mid(2, str.size()), vim_editor->get_current_segment_pos());
-        }
-        else if(str.Mid(0, 3) == ":rt") { // remove tag
-            vim_editor->remove_tag(str.Mid(3, str.size()), vim_editor->get_current_segment_pos());
-        }
+		command_callback(str);
     }, vim_command_line, vim_command_history);
 
 
@@ -210,7 +190,6 @@ C_Main::C_Main() : wxFrame(nullptr, wxID_ANY, "Window", wxPoint(0, 0), wxSize(80
 	SetSize(x);
 	auto w_size = GetSize();
 	resize_tree = window_test(w_size, add, publish, txt_1, list, vim_editor, vim_command_line.get(), vim_command_history.get()); 
-	Window::print_window_helper(resize_tree,"C:\\Users\\meme_\\Desktop\\meme.txt");
 
 	Refresh();
 	vim_editor->SetFocus();
@@ -382,10 +361,7 @@ bool Window::size_args(int num,...){
     return 1;
 }
 
-// WINDOW::SIZER
-
 std::pair<int, int> Window::Sizer::get_space(int x)const {
-    //if (x >= get_count()) { return -1; }
     auto set_output = [this](int length)->std::pair<int, int> {
         if (this->is_horizontal)
                 return std::make_pair(length, this->window_size->get_height());
@@ -422,42 +398,12 @@ void Window::Sizer::calculate() {
 
 
 
-// window memes
 void Window::delete_window_tree(Window* window) {
 	if (window == nullptr)return;
 	for (int i = 0; i < window->mem.count; ++i) {
 		delete_window_tree(window->mem.windows[i]);
 	}
 	delete window;
-}
-
-void Window::print_window_tree_to_file(Window* window, FILE* file, int depth) {
-	std::string output;
-	for (int i = 0; i < depth; ++i) {
-		output.append("-");
-	}
-	output.append(window->debug);	
-	output.append(", window_size(");
-	output.append(std::to_string(window->window_size.width));
-	output.append(", ");
-	output.append(std::to_string(window->window_size.height)); 
-	output.append(", ");
-	output.append(std::to_string(window->window_size.posx));
-	output.append(", ");
-	output.append(std::to_string(window->window_size.posy));
-	output.append(")\n");
-
-
-	fputs(output.c_str(), file);
-	for (int i = 0; i < window->mem.count; ++i) {
-		print_window_tree_to_file(window->mem.windows[i], file, depth + 1);
-	}
-}
-
-void Window::print_window_helper(Window* window, const std::string& file_name_loc) {
-	FILE* file = fopen(file_name_loc.c_str(), "w");
-	print_window_tree_to_file(window, file);
-	fclose(file);
 }
 
 Window* window_test(wxSize size, wxWindow* add, wxWindow* publish, wxWindow* text, wxWindow* list, wxRichTextCtrl* vim, wxWindow* vim_command, wxWindow* vim_history){
@@ -489,3 +435,7 @@ Window* window_test(wxSize size, wxWindow* add, wxWindow* publish, wxWindow* tex
 
 	return main;
 }
+
+
+
+ 
