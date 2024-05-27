@@ -157,6 +157,11 @@ public:
 
 	Command(wxString str, 	void(*cmd)(const wxString&, C_Main*)=nullptr)
 		:str(str), cmd(cmd) {}
+	Command(const Command& other) { str = other.str; cmd = other.cmd; };
+	Command(Command&& other)noexcept : str(std::move(other.str)), cmd(std::move(other.cmd)) {};
+	Command& operator =(const Command& other) { str = other.str; cmd = other.cmd; return *this; };
+	Command& operator =(Command&& other)noexcept { str = (std::move(other.str)); cmd = (std::move(other.cmd)); return *this; };
+	~Command() {}
 	bool exec(const wxString& param, C_Main* ptr)const;
 	bool operator == (const Command& search)const {
 		return str == search.str;
