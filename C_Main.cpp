@@ -92,10 +92,17 @@ void C_Main::command_callback(const wxString& str) {
 	};
 	auto [cmd, param] = process(str);
 	if (auto s = commands.find(cmd); s != commands.end()) {
-		s->cmd(param, this);
+		s->exec(param, this);
 	}
 }
 
+bool Command::exec(const wxString& param, C_Main* ptr)const {
+	if (cmd != nullptr && ptr != nullptr) {
+		cmd(param, ptr);
+		return true;
+	}
+	return false;
+}
 
 
 

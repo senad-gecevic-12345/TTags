@@ -150,12 +150,14 @@ Window* window_test(wxSize size, wxWindow* add, wxWindow* publish, wxWindow* tex
 
 class C_Main;
 
-struct Command {
+class Command {
 	wxString str;
 	void(*cmd)(const wxString&, C_Main*);
+public:
 
 	Command(wxString str, 	void(*cmd)(const wxString&, C_Main*)=nullptr)
 		:str(str), cmd(cmd) {}
+	bool exec(const wxString& param, C_Main* ptr)const;
 	bool operator == (const Command& search)const {
 		return str == search.str;
 	}
